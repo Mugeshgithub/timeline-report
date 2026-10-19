@@ -99,7 +99,53 @@
     });
   };
 
-  // ---------- offline map
+  // ---------- offline base map (Natural Earth, bundled)
+  let base = null;
+  function decode(str) {
+    const pts = []; let i = 0, lat = 0, lng = 0;
+    while (i < str.length) {
+      for (const which of [0, 1]) {
+        let b, shift = 0, res = 0;
+        do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        const d = res & 1 ? ~(res >> 1) : res >> 1;
+        if (which === 0) lat += d; else lng += d;
+      }
+      pts.push([lat / 1e4, lng / 1e4]);
+    }
+    return pts;
+  }
+  const bboxOf = pts => { let a = 90, b = 180, c = -90, d = -180; for (const p of pts) { if (p[0] < a) a = p[0]; if (p[0] > c) c = p[0]; if (p[1] < b) b = p[1]; if (p[1] > d) d = p[1]; } return [a, b, c, d]; };
+  function loadBase() {
+    if (base || !TR.BASEMAP) return base;
+    base = {};
+    for (const k in TR.BASEMAP) {
+      base[k] = TR.BASEMAP[k].map(f => {
+        const rings = (Array.isArray(f) ? f : [f]).map(decode);
+        return { poly: Array.isArray(f), rings, bb: bboxOf(rings[0]) };
+      });
+    }
+    return base;
+  }
+  // Sutherland–Hodgman clip of a ring to a lat/lng box
+  function clipRing(ring, box) {
+    const [s, w, n, e] = box;
+    const edges = [p => p[0] >= s, p => p[0] <= n, p => p[1] >= w, p => p[1] <= e];
+    const cut = [(a, b) => [s, a[1] + (b[1] - a[1]) * (s - a[0]) / (b[0] - a[0])], (a, b) => [n, a[1] + (b[1] - a[1]) * (n - a[0]) / (b[0] - a[0])],
+      (a, b) => [a[0] + (b[0] - a[0]) * (w - a[1]) / (b[1] - a[1]), w], (a, b) => [a[0] + (b[0] - a[0]) * (e - a[1]) / (b[1] - a[1]), e]];
+    let out = ring;
+    for (let k = 0; k < 4 && out.length; k++) {
+      const inp = out, inside = edges[k]; out = [];
+      for (let i = 0; i < inp.length; i++) {
+        const cur = inp[i], prev = inp[(i + inp.length - 1) % inp.length];
+        if (inside(cur)) { if (!inside(prev)) out.push(cut[k](prev, cur)); out.push(cur); }
+        else if (inside(prev)) out.push(cut[k](prev, cur));
+      }
+    }
+    return out;
+  }
+  const hits = (bb, box) => !(bb[2] < box[0] || bb[0] > box[2] || bb[3] < box[1] || bb[1] > box[3]);
+
+  // ---------- map
   TR.drawMap = function (host, model) {
     // model: { routes:[{mode, pts:[[lat,lng]], tip}], places:[{lat,lng,h,home,tip}], home:[lat,lng], homeRadiusKm, colors:{mode:css} }
     host.querySelectorAll('svg').forEach(s => s.remove());
@@ -116,42 +162,95 @@
     const F = Math.min((W - 80) / Math.max(1e-6, bx[1] - bx[0]), (Hh - 80) / Math.max(1e-6, by[1] - by[0]));
     const ox = (W - (bx[1] - bx[0]) * F) / 2 - bx[0] * F, oy = (Hh - (by[1] - by[0]) * F) / 2 - by[0] * F;
     const P = (lat, lng) => [mx(lng) * F + ox, my(lat) * F + oy];
+    const dpath = (pts, close) => pts.map((p, i) => { const q = P(p[0], p[1]); return (i ? 'L' : 'M') + q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join('') + (close ? 'Z' : '');
     const g = el('g', {}, svg);
-    const gHalo = el('g', {}, g), gRoutes = el('g', {}, g), gPlaces = el('g', {}, g);
+    const gBase = el('g', { class: 'basemap' }, g), gHalo = el('g', {}, g), gRoutes = el('g', {}, g), gPlaces = el('g', {}, g);
+    const gLabels = el('g', { class: 'maplabels' }, svg);
+
+    // base map, clipped to the area around your data
+    const bb = bboxOf(all), padLat = Math.max(1.5, (bb[2] - bb[0]) * 1.5), padLng = Math.max(1.5, (bb[3] - bb[1]) * 1.5);
+    const box = [Math.max(-85, bb[0] - padLat), bb[1] - padLng, Math.min(85, bb[2] + padLat), bb[3] + padLng];
+    const B = loadBase();
+    svg.style.background = css('--map-water');
+    if (B) {
+      const polyLayer = (k, fill) => {
+        let d = '';
+        B[k].forEach(f => { if (!hits(f.bb, box)) return; f.rings.forEach(ring => { const c = clipRing(ring, box); if (c.length > 2) d += dpath(c, true); }); });
+        if (d) el('path', { d, fill, 'fill-rule': 'evenodd', stroke: 'none' }, gBase);
+      };
+      const lineLayer = (k, stroke, width, dash) => {
+        let d = '';
+        B[k].forEach(f => { if (hits(f.bb, box)) d += dpath(f.rings[0], false); });
+        if (d) el('path', Object.assign({ d, fill: 'none', stroke, 'stroke-width': width, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' }, dash ? { 'stroke-dasharray': dash } : {}), gBase);
+      };
+      polyLayer('land', css('--map-land'));
+      polyLayer('urban', css('--map-urban'));
+      polyLayer('lakes', css('--map-water'));
+      lineLayer('rivers', css('--map-water-line'), 1);
+      lineLayer('roads', css('--map-road'), 1);
+      lineLayer('highways', css('--map-highway'), 1.6);
+      lineLayer('states', css('--map-border'), 0.8, '4 3');
+      lineLayer('countries', css('--map-border'), 1.3, '6 3 1.5 3');
+    }
+
     // home radius ring
     const hp = P(model.home[0], model.home[1]);
     const ringR = model.homeRadiusKm / (6371 * Math.cos(model.home[0] * r)) * F;
-    el('circle', { cx: hp[0], cy: hp[1], r: ringR, fill: 'none', stroke: css('--hair-2'), 'stroke-dasharray': '3 5', 'vector-effect': 'non-scaling-stroke' }, gHalo);
+    el('circle', { cx: hp[0], cy: hp[1], r: ringR, fill: 'none', stroke: css('--ink-3'), 'stroke-opacity': 0.6, 'stroke-dasharray': '3 5', 'vector-effect': 'non-scaling-stroke' }, gHalo);
     const layers = {};
     model.routes.forEach(rt => {
       if (rt.pts.length < 2) return;
       const lg = layers[rt.mode] = layers[rt.mode] || el('g', { 'data-mode': rt.mode }, gRoutes);
-      const d = rt.pts.map((p, i) => { const q = P(p[0], p[1]); return (i ? 'L' : 'M') + q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join('');
-      const path = el('path', { d, fill: 'none', stroke: model.colors[rt.mode] || model.colors.other, 'stroke-width': 1.6, 'stroke-opacity': 0.72, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' }, lg);
-      path.addEventListener('mousemove', e => { path.setAttribute('stroke-width', 4); path.setAttribute('stroke-opacity', 1); TR.tip.show(rt.tip, e.clientX, e.clientY); });
-      path.addEventListener('mouseleave', () => { path.setAttribute('stroke-width', 1.6); path.setAttribute('stroke-opacity', 0.72); TR.tip.hide(); });
+      const path = el('path', { d: dpath(rt.pts, false), fill: 'none', stroke: model.colors[rt.mode] || model.colors.other, 'stroke-width': 2, 'stroke-opacity': 0.85, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' }, lg);
+      path.addEventListener('mousemove', e => { path.setAttribute('stroke-width', 4.5); path.setAttribute('stroke-opacity', 1); TR.tip.show(rt.tip, e.clientX, e.clientY); });
+      path.addEventListener('mouseleave', () => { path.setAttribute('stroke-width', 2); path.setAttribute('stroke-opacity', 0.85); TR.tip.hide(); });
     });
     const dots = [];
     model.places.slice().sort((a, b) => b.h - a.h).forEach(p => {
-      const q = P(p.lat, p.lng), base = Math.max(3, Math.min(16, 2.5 + Math.sqrt(p.h) * 1.1));
-      const c = el('circle', { cx: q[0], cy: q[1], r: base, fill: p.home ? css('--ink') : css('--ink'), 'fill-opacity': p.home ? 1 : 0.55, stroke: css('--surface'), 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }, gPlaces);
-      if (p.home) el('circle', { cx: q[0], cy: q[1], r: base + 5, fill: 'none', stroke: css('--ink'), 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' }, gPlaces);
-      dots.push([c, base, p.home ? gPlaces.lastChild : null]);
+      const q = P(p.lat, p.lng), b0 = Math.max(3, Math.min(14, 2.5 + Math.sqrt(p.h) * 1));
+      const c = el('circle', { cx: q[0], cy: q[1], r: b0, fill: css('--ink'), 'fill-opacity': p.home ? 1 : 0.7, stroke: css('--map-land'), 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }, gPlaces);
+      let ring = null;
+      if (p.home) ring = el('circle', { cx: q[0], cy: q[1], r: b0 + 5, fill: 'none', stroke: css('--ink'), 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke' }, gPlaces);
+      dots.push([c, b0, ring]);
       c.addEventListener('mousemove', e => TR.tip.show(p.tip, e.clientX, e.clientY));
       c.addEventListener('mouseleave', TR.tip.hide);
     });
+
+    // town labels (screen space, re-laid out on every zoom/pan)
+    const towns = TR.townsIn ? TR.townsIn(box) : [];
+    const townPts = towns.map(t => ({ t, q: P(t.lat, t.lng) }));
+    function layoutLabels() {
+      while (gLabels.firstChild) gLabels.removeChild(gLabels.firstChild);
+      const placed = [], ink = css('--map-label'), halo = css('--map-land');
+      let n = 0;
+      for (const { t, q } of townPts) {
+        const x = q[0] * k + tx, y = q[1] * k + ty;
+        if (x < -40 || y < -20 || x > W + 40 || y > Hh + 20) continue;
+        const big = t.pop >= 1e6, fs = big ? 15 : t.pop >= 2e5 ? 12.5 : 11.5;
+        const w = t.name.length * fs * 0.52 + 10, h = fs + 6, bx0 = x + 6, by0 = y - h / 2;
+        if (placed.some(b => bx0 < b[2] && bx0 + w > b[0] && by0 < b[3] && by0 + h > b[1])) continue;
+        placed.push([bx0 - 8, by0, bx0 + w, by0 + h]);
+        el('circle', { cx: x, cy: y, r: big ? 2.6 : 1.8, fill: ink }, gLabels);
+        const tEl = el('text', { x: x + 6, y: y + fs * 0.35, 'font-size': fs, fill: ink, stroke: halo, 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-family': big ? css('--serif') : css('--sans'), 'font-style': big ? 'italic' : 'normal' }, gLabels);
+        tEl.textContent = t.name;
+        if (++n >= 70) break;
+      }
+    }
+
     // view state
-    let k = 1, tx = 0, ty = 0;
+    let k = 1, tx = 0, ty = 0, raf = 0;
     const scaleEl = host.querySelector('.scalebar');
     function apply() {
       g.setAttribute('transform', `translate(${tx},${ty}) scale(${k})`);
-      dots.forEach(([c, b, ring]) => { c.setAttribute('r', b / Math.sqrt(k)); if (ring) ring.setAttribute('r', (b + 5) / Math.sqrt(k)); });
+      const sz = Math.min(1.6, Math.pow(k, 0.15)) / k; // dots stay roughly the same size on screen, growing slightly as you zoom in
+      dots.forEach(([c, b0, ring]) => { c.setAttribute('r', b0 * 0.75 * sz); if (ring) ring.setAttribute('r', (b0 * 0.75 + 4) * sz); });
       if (scaleEl) {
         const mPerPx = 6371000 * Math.cos(model.home[0] * r) / (F * k);
         let len = 1; const target = 110 * mPerPx;
         for (const m of [1, 2, 5]) for (let e = 0; e < 8; e++) { const v = m * Math.pow(10, e); if (v <= target) len = Math.max(len, v); }
         scaleEl.innerHTML = `${len >= 1000 ? len / 1000 + ' km' : len + ' m'}<i style="width:${(len / mPerPx).toFixed(0)}px"></i>`;
       }
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; layoutLabels(); });
     }
     function zoomAt(f, sx, sy) { const nk = Math.max(0.5, Math.min(4000, k * f)); tx = sx - (sx - tx) * (nk / k); ty = sy - (sy - ty) * (nk / k); k = nk; apply(); }
     svg.addEventListener('wheel', e => { e.preventDefault(); const b = svg.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY * 0.0022), e.clientX - b.left, e.clientY - b.top); }, { passive: false });
@@ -161,9 +260,7 @@
     const end = () => { drag = null; host.classList.remove('drag'); };
     svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
     svg.addEventListener('dblclick', e => { const b = svg.getBoundingClientRect(); zoomAt(2, e.clientX - b.left, e.clientY - b.top); });
-    function fitTo(cx, cy, halfW) { // screen-space fit around a projected point
-      k = Math.max(0.5, Math.min(4000, Math.min(W, Hh) / 2 / halfW)); tx = W / 2 - cx * k; ty = Hh / 2 - cy * k; apply();
-    }
+    function fitTo(cx, cy, halfW) { k = Math.max(0.5, Math.min(4000, Math.min(W, Hh) / 2 / halfW)); tx = W / 2 - cx * k; ty = Hh / 2 - cy * k; apply(); }
     apply();
     return {
       fitAll() { k = 1; tx = 0; ty = 0; apply(); },

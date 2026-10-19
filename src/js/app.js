@@ -390,7 +390,7 @@
       `<div class="mapbox" id="mapbox"><div class="map-tools"><button class="iconbtn" data-map="all">Everything</button><button class="iconbtn" data-map="home">Around home</button></div>
        <div class="map-legend">${travelModes.map(m => `<label data-layer="${m}"><i style="background:${MODE_COLOR(m)}"></i>${MODE_LABEL[m]}</label>`).join('')}<label data-layer="places"><i style="background:var(--ink);height:8px;width:8px;border-radius:50%"></i>Places</label></div>
        <div class="scalebar"></div></div>
-       <p class="fig-note">No background map — that would need the internet. The dashed ring marks ${S.radiusKm} km from home.</p>`, 'Map');
+       <p class="fig-note">Coastlines, rivers, borders, main roads and towns are built in, so the map works offline. Your own routes show the smaller roads you used. The dashed ring marks ${S.radiusKm} km from home. Map data: Natural Earth.</p>`, 'Map');
 
     // 07 — days
     const nFix = r.flags.filter(f => f.reasons.some(x => x !== 'unsure')).length;

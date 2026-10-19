@@ -36,3 +36,11 @@
   // Short name for a region (a stay or a destination): the big city if there is one, otherwise the town.
   TR.regionName = function (lat, lng) { const g = TR.geoName(lat, lng); return g.city || g.town || ''; };
 })(globalThis.TR = globalThis.TR || {});
+// Towns inside a [south, west, north, east] box, biggest first (for map labels).
+(function (TR) {
+  TR.townsIn = function (box) {
+    TR.geoName(0, 0); // ensure loaded
+    return (TR.GAZ || '').split(';').filter(Boolean).map(s => { const p = s.split('|'); return { name: p[0], lat: +p[1], lng: +p[2], pop: +p[3] * 1000 }; })
+      .filter(t => t.lat >= box[0] && t.lat <= box[2] && t.lng >= box[1] && t.lng <= box[3]).sort((a, b) => b.pop - a.pop);
+  };
+})(globalThis.TR = globalThis.TR || {});

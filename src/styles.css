@@ -12,6 +12,7 @@
   --mode-car: #2a78d6; --mode-bike: #eb6834; --mode-bus: #1baf7a; --mode-train: #eda100;
   --mode-cycle: #e87ba4; --mode-walk: #008300; --mode-other: #6250d6; --mode-flight: #898781;
   --t-home: #2a78d6; --t-town: #eb6834; --t-away: #1baf7a; --t-road: #eda100;
+  --map-water: #dbe5ea; --map-water-line: #b9cdd8; --map-land: #f4f1ea; --map-urban: #e9e3d6; --map-road: #e2ddd1; --map-highway: #e3c98f; --map-border: #a8a294; --map-label: #5d5a54;
   --seq-0: #ece9e1; --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5; --seq-5: #256abf; --seq-6: #184f95;
   --serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -25,6 +26,7 @@
     --mode-car: #3987e5; --mode-bike: #d95926; --mode-bus: #199e70; --mode-train: #c98500;
     --mode-cycle: #d55181; --mode-walk: #008300; --mode-other: #9085e9;
     --t-home: #3987e5; --t-town: #d95926; --t-away: #199e70; --t-road: #c98500;
+    --map-water: #0f1518; --map-water-line: #1d2a31; --map-land: #1c1c1a; --map-urban: #262522; --map-road: #2f2e2a; --map-highway: #4a4130; --map-border: #55524b; --map-label: #a9a69c;
     --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
     color-scheme: dark;
   }
