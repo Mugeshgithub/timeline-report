@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- This page is not allowed to make any network request. Your file never leaves your device. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<!-- This page processes your file locally. Analytics data is sent to Vercel to understand usage. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://va.vercel-scripts.com; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; connect-src https://va.vercel-scripts.com; form-action 'none'; base-uri 'none'">
 <meta name="description" content="Turn your Google Maps Timeline export into a private report: fuel costs, trips, places and days. Runs offline in your browser.">
 <title>Timeline Report — your Google Timeline, privately explained</title>
 <!-- inject:css -->
@@ -51,5 +51,6 @@
 <aside class="drawer" id="drawer" aria-label="Day detail"><div class="drawer-in" id="drawer-body"></div></aside>
 
 <!-- inject:js -->
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
