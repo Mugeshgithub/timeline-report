@@ -1,0 +1,10 @@
+{
+  "name": "timeline-report",
+  "version": "0.1.0",
+  "description": "Turn your Google Maps Timeline export into a private, offline report: fuel costs, trips, places and days.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js"
+  }
+}

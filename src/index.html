@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- This page is not allowed to make any network request. Your file never leaves your device. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="description" content="Turn your Google Maps Timeline export into a private report: fuel costs, trips, places and days. Runs offline in your browser.">
+<title>Timeline Report — your Google Timeline, privately explained</title>
+<!-- inject:css -->
+</head>
+<body>
+
+<main id="intro">
+  <div class="wrap masthead reveal"><span class="wordmark">Timeline <i>Report</i></span><span class="lock">Works offline · nothing is uploaded</span></div>
+  <div class="wrap hero">
+    <div class="kicker reveal">For your Google Maps Timeline</div>
+    <h1 class="display reveal">Where you went,<br><em>and what it cost.</em></h1>
+    <p class="lede reveal">Open your Timeline export and get a clear, private report: fuel spent, trips taken, places that mattered and how your days were really spent. Everything happens on this device — this page can’t even reach the internet.</p>
+    <label class="drop reveal" id="drop">
+      <span class="arrow">→</span>
+      <span><div class="big" id="drop-big">Drop your Timeline.json here</div><div class="small">or click to choose the file</div></span>
+      <input type="file" id="file" accept=".json,application/json" aria-label="Choose your Timeline.json">
+    </label>
+    <div class="intro-actions reveal">
+      <button class="linkish" id="try-sample">Explore with sample data</button>
+      <button class="linkish" id="how-toggle">How do I get my Timeline file?</button>
+    </div>
+    <div class="error hidden" id="error" role="alert"></div>
+    <div class="howto hidden" id="howto">
+      Google now keeps Timeline on your phone, so the export comes from there:
+      <ol>
+        <li><b>Android:</b> Settings → Location → Location services → Timeline → <i>Export Timeline data</i>.</li>
+        <li><b>iPhone:</b> Google Maps → your profile picture → Your Timeline → ⋯ → Location and privacy settings → <i>Export Timeline data</i>.</li>
+        <li>Move the <code>Timeline.json</code> file to this computer and drop it above.</li>
+      </ol>
+    </div>
+  </div>
+  <div class="wrap colophon reveal"><span>No accounts, no tracking, no AI. Open source.</span><span>Your names and corrections are saved only in this browser.</span></div>
+</main>
+
+<main id="setup" class="hidden">
+  <div class="wrap masthead"><button class="linkish wordmark" id="setup-home" style="text-decoration:none">Timeline <i>Report</i></button><div class="progress" id="progress"></div></div>
+  <div id="setup-body"></div>
+  <div class="narrow nav"><button class="btn ghost" id="step-back">Back</button><span></span><button class="btn" id="step-next">Continue <span class="ar">→</span></button></div>
+</main>
+
+<main id="report" class="hidden"></main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Day detail"><div class="drawer-in" id="drawer-body"></div></aside>
+
+<!-- inject:js -->
+</body>
+</html>
