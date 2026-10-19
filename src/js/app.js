@@ -94,7 +94,8 @@
       const ids = new Set(data.segs.filter(s => s.kind === 'visit').map(s => s.placeId));
       ids.forEach(id => { const m = id.match(/^ChIJsample\d{4}(\w+)$/); if (m && m[1] !== 'home') { const n = m[1][0].toUpperCase() + m[1].slice(1); st.edits.placeNames[id] = n; st.edits.areaNames[id] = n; } });
     }
-    st.stayIdx = st.stays.reduce((b, s, i) => (s.hours > st.stays[b].hours ? i : b), 0);
+    const recent = st.stays.map((s, i) => i).filter(i => st.stays[i].days >= 14);
+    st.stayIdx = recent.length ? recent[recent.length - 1] : st.stays.reduce((b, s, i) => (s.hours > st.stays[b].hours ? i : b), 0);
     pickStay(st.stayIdx);
     st.step = 0;
     show('setup'); renderStep();
@@ -116,8 +117,21 @@
     if (/-us$|-ca$|-au$/.test(l)) return '$';
     return '€';
   }
+  function pickCustom(from, to) {
+    if (!from || !to || to < from) return false;
+    const a = Date.parse(from + 'T00:00:00Z'), b = Date.parse(to + 'T00:00:00Z') + DAY;
+    let best = -Infinity, bi = st.stayIdx;
+    st.stays.forEach((s, i) => { const ov = Math.min(b, s.end) - Math.max(a, s.start); if (ov > best) { best = ov; bi = i; } });
+    const stay = st.stays[bi];
+    st.stayIdx = bi;
+    Object.assign(st.S, { off: stay.off, home: TR.detectHome(st.data, stay), start: a - stay.off * 60000, end: b - stay.off * 60000, custom: { from, to } });
+    return true;
+  }
+  const spansStays = () => st.stays.filter(s => s.end > st.S.start && s.start < st.S.end).length > 1;
+  const isoDay = ms => loc(ms).toISOString().slice(0, 10);
   function pickStay(i) {
     st.stayIdx = i;
+    st.S.custom = null;
     const stay = st.stays[i];
     const home = TR.detectHome(st.data, stay), w = TR.defaultWindow(st.data, stay, home);
     Object.assign(st.S, { off: stay.off, home, start: w.start, end: w.end });
@@ -155,16 +169,20 @@
         const o = st.S.off; st.S.off = s.off;
         const line = `${dLong(s.start)} – ${dLong(s.end)}`;
         st.S.off = o;
-        return `<div class="choice ${i === st.stayIdx ? 'on' : ''}" data-stay="${i}" role="button" tabindex="0">
+        return `<div class="choice ${i === st.stayIdx && !st.S.custom ? 'on' : ''}" data-stay="${i}" role="button" tabindex="0">
           <span class="dot"></span>
           <span><div class="t1">${plural(s.days, 'day')}${st.stayNames[i] ? ` in <em>${esc(st.stayNames[i])}</em>` : ''}</div><div class="t2">${line} · ${offLabel(s.off)}</div></span>
           <span class="aside"><input class="name" data-stayname="${i}" placeholder="Name this place" value="${esc(st.stayNames[i] || '')}" aria-label="Name this stay"></span>
         </div>`;
       }).join('');
-      return qhead(1, 'Which stretch of time should we look at?', `We found ${plural(st.stays.length, 'stay')} in your file, split wherever you took a flight. Give them names if you like — the file only has coordinates, so you know these places better than it does.`) + `<div class="choices">${rows}</div>`;
+      return qhead(1, 'Which stretch of time should we look at?', `We found ${plural(st.stays.length, 'stay')} in your file, split wherever you took a flight. Give them names if you like — the file only has coordinates, so you know these places better than it does.`) + `<div class="choices">${rows}
+        <div class="choice ${st.S.custom ? 'on' : ''}" data-stay="custom" role="button" tabindex="0"><span class="dot"></span>
+          <span><div class="t1">Custom dates</div><div class="t2">Any range you like: one month, a single week, or across several trips</div></span><span class="aside"></span></div></div>
+        ${st.S.custom ? `<div class="field" style="border-top:0"><label>From<small>First day to include</small></label><div class="ctl"><input type="date" id="c-from" min="${isoDay(st.data.first)}" max="${isoDay(st.data.last)}" value="${st.S.custom.from}"></div></div>
+        <div class="field"><label>To<small>Last day to include${spansStays() ? ' · this range covers more than one trip, so distances are measured from one home' : ''}</small></label><div class="ctl"><input type="date" id="c-to" min="${isoDay(st.data.first)}" max="${isoDay(st.data.last)}" value="${st.S.custom.to}"></div></div>` : ''}`;
     },
     home() {
-      const stay = st.stays[st.stayIdx], places = stayPlaces(stay).slice(0, 6);
+      const stay = st.stays[st.stayIdx], places = stayPlaces(st.S.custom ? { start: st.S.start, end: st.S.end } : stay).slice(0, 6);
       const curHome = [st.S.home.lat, st.S.home.lng];
       const rows = places.map(p => {
         const on = U.hav([p.lat, p.lng], curHome) < 0.15;
@@ -175,8 +193,8 @@
       const toDate = ms => loc(ms).toISOString().slice(0, 10);
       return qhead(2, 'Where’s home?', 'Picked from where you slept most. Choose another if we got it wrong.') + `<div class="choices">${rows}</div>
         <div class="group-title">Dates</div>
-        <div class="field"><label>From<small>We begin when you first got home: ${dShort(st.S.start)}, ${tHM(st.S.start)}</small></label><div class="ctl"><input type="date" id="d-from" value="${toDate(st.S.start)}"></div></div>
-        <div class="field"><label>To<small>…and stop when you last left: ${dShort(st.S.end)}, ${tHM(st.S.end)}</small></label><div class="ctl"><input type="date" id="d-to" value="${toDate(st.S.end - 1)}"></div></div>`;
+        <div class="field"><label>From<small>${st.S.custom ? 'Your custom range' : `We begin when you first got home: ${dShort(st.S.start)}, ${tHM(st.S.start)}`}</small></label><div class="ctl"><input type="date" id="d-from" value="${toDate(st.S.start)}"></div></div>
+        <div class="field"><label>To<small>${st.S.custom ? 'Change it here or on the first question' : `…and stop when you last left: ${dShort(st.S.end)}, ${tHM(st.S.end)}`}</small></label><div class="ctl"><input type="date" id="d-to" value="${toDate(st.S.end - 1)}"></div></div>`;
     },
     modes() {
       const km = rawModeKm();
@@ -255,8 +273,12 @@
       host.addEventListener('click', e => {
         if (e.target.closest('input')) return;
         const c = e.target.closest('[data-stay]'); if (!c) return;
-        pickStay(+c.dataset.stay); renderStep();
+        if (c.dataset.stay === 'custom') { if (!st.S.custom) pickCustom(isoDay(st.S.start), isoDay(st.S.end - 1)); }
+        else pickStay(+c.dataset.stay);
+        renderStep();
       });
+      const cf = $('#c-from', host), ct = $('#c-to', host);
+      if (cf) [cf, ct].forEach(i => i.addEventListener('change', () => { if (pickCustom(cf.value, ct.value)) renderStep(); }));
       $$('[data-stayname]', host).forEach(inp => inp.addEventListener('input', () => { st.stayNames[inp.dataset.stayname] = inp.value.trim(); }));
     },
     home(host) {
@@ -264,12 +286,13 @@
         const c = e.target.closest('[data-home]'); if (!c) return;
         const [lat, lng] = c.dataset.home.split(',').map(Number);
         st.S.home = { lat, lng };
-        const w = TR.defaultWindow(st.data, st.stays[st.stayIdx], st.S.home);
-        st.S.start = w.start; st.S.end = w.end; renderStep();
+        if (!st.S.custom) { const w = TR.defaultWindow(st.data, st.stays[st.stayIdx], st.S.home); st.S.start = w.start; st.S.end = w.end; }
+        renderStep();
       });
       const dayMs = v => Date.parse(v + 'T00:00:00Z') - st.S.off * 60000;
-      $('#d-from', host).addEventListener('change', e => { if (e.target.value) st.S.start = dayMs(e.target.value); });
-      $('#d-to', host).addEventListener('change', e => { if (e.target.value) st.S.end = dayMs(e.target.value) + DAY; });
+      const syncCustom = () => { if (st.S.custom) st.S.custom = { from: isoDay(st.S.start), to: isoDay(st.S.end - 1) }; };
+      $('#d-from', host).addEventListener('change', e => { if (e.target.value) { st.S.start = dayMs(e.target.value); syncCustom(); } });
+      $('#d-to', host).addEventListener('change', e => { if (e.target.value) { st.S.end = dayMs(e.target.value) + DAY; syncCustom(); } });
     },
     modes(host) {
       host.addEventListener('click', e => {
@@ -337,7 +360,7 @@
 
   function renderReport(keepScroll) {
     const y = window.scrollY, r = st.r, S = st.S;
-    const name = st.stayNames[st.stayIdx];
+    const name = spansStays() ? '' : st.stayNames[st.stayIdx];
     const nDays = r.days.length;
     const homePct = pct(r.totals.home, r.windowHours);
     const kicker = `${dLong(r.A)} – ${dLong(r.B - 1)}`;
@@ -437,7 +460,7 @@
         <div class="stats reveal">
           <div class="stat"><div class="v num">${n0(r.totalKm)}</div><div class="l">kilometres travelled</div></div>
           <div class="stat"><div class="v num">${money(r.fuelCost)}</div><div class="l">spent on fuel</div></div>
-          <div class="stat"><div class="v num">${r.trips.length}</div><div class="l">trips out of town</div></div>
+          <div class="stat"><div class="v num">${r.trips.length}</div><div class="l">${r.trips.length === 1 ? 'trip' : 'trips'} out of town</div></div>
           <div class="stat"><div class="v num">${homePct}%</div><div class="l">of the time at home</div></div>
         </div></div></section>
       ${chapters.map(c => c.html).join('')}
