@@ -4,7 +4,7 @@
 
 <p align="center"><img src="assets/report.png" alt="Report overview: 56 days in Porto" width="880"></p>
 
-Google's own Timeline shows you dots on a map. Timeline Report asks you a few questions (your car's mileage, fuel price, how you actually travel), fixes the mistakes Google makes, and answers the questions people actually have:
+Google's own Timeline shows you dots on a map. Timeline Report asks three plain questions on one page (which dates, your car's mileage and petrol price, and whether Google's travel guesses are right), fixes the mistakes Google makes, and answers the questions people actually have:
 
 - **What did it cost?** Fuel per vehicle, per month and per trip, plus what an electric car would have cost.
 - **Where did I go?** Every trip out of town, grouped by destination ("4 trips to Braga, 382 km").
@@ -24,14 +24,18 @@ Google's own Timeline shows you dots on a map. Timeline Report asks you a few qu
 
 ## It fixes what Google gets wrong
 
-Google guesses how you travelled, and it often guesses wrong. Before the report, Timeline Report:
+Google guesses how you travelled, and it often guesses wrong. Timeline Report:
 
-- **Asks which modes you actually use.** If you never take the bus, every "bus" ride is moved to your car (or whatever you choose).
+- **Asks whether Google's guesses are right.** "By bus: 7 journeys, 139 km. Yes, that's right / No, it was my car." Answer no and those journeys count as your car.
 - **Catches parked "drives".** A 16-hour "car journey" covering 3 km is your phone sitting still, so it's excluded.
 - **Catches GPS glitches.** A 260 km/h car journey is excluded.
-- **Lists low-confidence guesses** so you can fix them with one click, and lets you correct any journey later from the day view.
+- **Lists low-confidence guesses** so you can fix them with one click. You can also correct any journey from the day view.
 
-<p align="center"><img src="assets/review.png" alt="Review step listing journeys that looked wrong" width="720"></p>
+<p align="center"><img src="assets/setup.png" alt="The three setup questions on one page" width="720"></p>
+
+Everything it changed is listed under *See what we changed*, where you can undo or adjust any of it.
+
+<p align="center"><img src="assets/review.png" alt="Corrections panel" width="880"></p>
 
 <table><tr>
 <td><img src="assets/cost.png" alt="Fuel cost chapter"></td>

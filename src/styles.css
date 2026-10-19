@@ -336,3 +336,31 @@ footer.end .colophon { margin-top: 60px; }
   .mapbox { height: 520px; }
 }
 .drawer .chip { padding: 4px 9px; font-size: 12.5px; }
+
+/* single-page questions */
+.qa { padding: 46px 0 8px; border-top: 1px solid var(--hair); margin-top: 40px; }
+.qa-q { display: flex; align-items: baseline; gap: 16px; font-family: var(--serif); font-weight: 400; font-size: clamp(30px, 3.6vw, 42px); line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.01em; }
+.qa-n { font-style: italic; font-size: .62em; color: var(--ink-3); min-width: 18px; }
+.qa-hint { color: var(--ink-2); font-size: 16px; margin: 0 0 22px; max-width: 34em; }
+.qa .choices, .qa .field:first-of-type { margin-top: 6px; }
+.qa .choice .t1 { font-size: 23px; }
+.qa .field label { font-family: var(--sans); font-size: 17px; }
+.cur { display: flex; align-items: center; gap: 4px; margin-top: 16px; font-size: 14px; color: var(--ink-2); }
+.cur .chip { font-size: 15px; }
+.pair { display: flex; gap: 40px; flex-wrap: wrap; padding: 22px 0 0 46px; }
+.pair label { display: flex; align-items: baseline; gap: 12px; font-size: 15px; color: var(--ink-2); }
+.pair input { border: 0; border-bottom: 1px solid var(--ink-3); background: transparent; font-family: var(--serif); font-size: 22px; padding: 2px 0; outline: none; }
+.mq { display: grid; grid-template-columns: 1fr auto; gap: 10px 24px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--hair); }
+.mq:first-of-type { border-top: 1px solid var(--hair); }
+.mq-t { font-family: var(--serif); font-size: 23px; line-height: 1.2; }
+.mq-s { font-size: 14px; color: var(--ink-2); }
+.seg { display: flex; gap: 6px; }
+.seg .chip { border-color: var(--hair-2); font-size: 14px; padding: 8px 14px; }
+.seg .chip.on { border-color: var(--ink); }
+.mq-more { grid-column: 1 / -1; }
+.sub-q { font-family: var(--serif); font-size: 26px; margin: 36px 0 4px; }
+details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding-top: 26px; }
+.fixnote { font-size: 16px; color: var(--ink-2); margin: 0 0 30px; }
+.drawer .flag { grid-template-columns: 1fr; }
+.drawer .flag .modechips { grid-column: 1; margin-left: -9px; }
+@media (max-width: 700px) { .mq { grid-template-columns: 1fr; } .pair { padding-left: 0; } }
