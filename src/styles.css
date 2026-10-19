@@ -364,3 +364,5 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
 .drawer .flag { grid-template-columns: 1fr; }
 .drawer .flag .modechips { grid-column: 1; margin-left: -9px; }
 @media (max-width: 700px) { .mq { grid-template-columns: 1fr; } .pair { padding-left: 0; } }
+.field small.warn { color: #d9822b; font-family: var(--sans); font-size: 13.5px; margin-top: 4px; }
+.field small.warn:empty { display: none; }

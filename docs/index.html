@@ -377,6 +377,8 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
 .drawer .flag { grid-template-columns: 1fr; }
 .drawer .flag .modechips { grid-column: 1; margin-left: -9px; }
 @media (max-width: 700px) { .mq { grid-template-columns: 1fr; } .pair { padding-left: 0; } }
+.field small.warn { color: #d9822b; font-family: var(--sans); font-size: 13.5px; margin-top: 4px; }
+.field small.warn:empty { display: none; }
 </style>
 </head>
 <body>
@@ -625,31 +627,39 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
     return stays;
   };
 
-  // Best guess of home inside a stay.
+  // Best guess of home inside a stay: where you were at 3 am on the most nights
+  // (spots under 250 m apart count as one place, since Google often splits a home in two).
   TR.detectHome = function (data, stay) {
-    const centre = [stay.lat, stay.lng];
-    if (data.home && hav([data.home.lat, data.home.lng], centre) < 50) return { lat: data.home.lat, lng: data.home.lng };
-    const vs = topVisits(data).filter(v => v.start >= stay.start && v.end <= stay.end);
-    const byPlace = {};
-    vs.forEach(v => {
-      const p = byPlace[v.placeId] = byPlace[v.placeId] || { h: 0, night: 0, home: 0, lat: v.lat, lng: v.lng };
-      const h = (v.end - v.start) / H;
-      p.h += h;
-      if (/HOME/.test(v.semantic)) p.home += h;
-      const hr = localHour(v.start, v.offStart);
-      if (hr >= 20 || hr < 4) p.night += h;
-    });
-    const ps = Object.values(byPlace);
-    if (!ps.length) return { lat: stay.lat, lng: stay.lng };
-    const best = ps.reduce((a, b) => ((b.home * 3 + b.night * 2 + b.h) > (a.home * 3 + a.night * 2 + a.h) ? b : a));
-    return { lat: best.lat, lng: best.lng };
+    const vs = topVisits(data).filter(v => v.end > stay.start && v.start < stay.end);
+    if (!vs.length) return { lat: stay.lat, lng: stay.lng };
+    const groups = [];
+    const groupOf = v => {
+      let g = groups.find(g => hav([g.lat, g.lng], [v.lat, v.lng]) < 0.25);
+      if (!g) { g = { lat: v.lat, lng: v.lng, nights: 0, h: 0, best: 0 }; groups.push(g); }
+      return g;
+    };
+    vs.forEach(v => { const g = groupOf(v), h = (Math.min(v.end, stay.end) - Math.max(v.start, stay.start)) / H; g.h += h; });
+    for (let t = dayStart(dayKey(stay.start, stay.off), stay.off) + 3 * H; t < stay.end; t += DAY) {
+      const v = vs.find(v => v.start <= t && t < v.end);
+      if (v) groupOf(v).nights++;
+    }
+    // use the most visited exact spot inside the winning group as the home point
+    const win = groups.reduce((a, g) => (g.nights > a.nights || (g.nights === a.nights && g.h > a.h) ? g : a));
+    const spots = {};
+    vs.forEach(v => { if (hav([win.lat, win.lng], [v.lat, v.lng]) < 0.25) { const k = v.lat + ',' + v.lng; spots[k] = (spots[k] || 0) + (v.end - v.start); } });
+    const k = Object.keys(spots).reduce((a, b) => (spots[b] > spots[a] ? b : a));
+    const [lat, lng] = k.split(',').map(Number);
+    return { lat, lng };
   };
 
   // Default report window: first arrival home → last departure from home within the stay.
   TR.defaultWindow = function (data, stay, home) {
+    // Trim the airport run at each end: start at the first arrival home and stop at the last departure,
+    // but only when that is within a day and a half of the trip's ends (otherwise keep the whole trip).
     const vs = topVisits(data).filter(v => v.start >= stay.start && v.end <= stay.end && hav([v.lat, v.lng], [home.lat, home.lng]) < 0.25);
     if (!vs.length) return { start: stay.start, end: stay.end };
-    return { start: vs[0].start, end: vs.reduce((m, v) => Math.max(m, v.end), 0) };
+    const first = vs[0].start, last = vs.reduce((m, v) => Math.max(m, v.end), 0), slack = 36 * H;
+    return { start: first - stay.start < slack ? first : stay.start, end: stay.end - last < slack ? last : stay.end };
   };
 
   TR.defaultSettings = function () {
@@ -1198,7 +1208,7 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
   const plural = (n, w, p) => `${n0(n)} ${n === 1 ? w : (p || w + 's')}`;
 
   // ---------- persistence
-  const storeKey = () => 'timeline-report:' + st.data.fingerprint;
+  const storeKey = () => 'timeline-report:v2:' + st.data.fingerprint;
   function save() {
     if (st.sample) return;
     try { localStorage.setItem(storeKey(), JSON.stringify({ S: st.S, edits: st.edits, stayNames: st.stayNames, stayIdx: st.stayIdx })); } catch (e) { /* storage full or blocked */ }
@@ -1337,7 +1347,12 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
     return o;
   }
   const QA = (n, q, hint, body) => `<section class="qa"><h3 class="qa-q"><span class="qa-n">${n}</span>${q}</h3>${hint ? `<p class="qa-hint">${hint}</p>` : ''}${body}</section>`;
-  const numField = (id, label, val, unit) => `<div class="field"><label>${label}</label><div class="ctl"><input type="number" id="${id}" value="${val}" min="0" step="any"><span class="unit">${unit}</span></div></div>`;
+  const numField = (id, label, val, unit) => `<div class="field"><label>${label}<small class="warn" id="${id}-warn"></small></label><div class="ctl"><input type="number" id="${id}" value="${val}" min="0" step="any"><span class="unit">${unit}</span></div></div>`;
+  const SANE = { 'car-kmpl': [5, 35, 'Most cars do 8–30 km on a litre. Is this the motorbike’s figure?'], 'bike-kmpl': [15, 120, 'Most motorbikes do 25–90 km on a litre.'] };
+  function checkSane(id, v) {
+    const w = $('#' + id + '-warn'), r = SANE[id]; if (!w || !r) return;
+    w.textContent = v < r[0] || v > r[1] ? r[2] : '';
+  }
   const CHECK_MODES = ['bike', 'bus', 'train', 'cycle'];
   const MODE_PLAIN = { bike: 'By motorbike', bus: 'By bus', train: 'By train', cycle: 'By bicycle' };
 
@@ -1404,7 +1419,7 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
     };
     const cf = $('#c-from', host), ct = $('#c-to', host);
     if (cf) [cf, ct].forEach(i => i.addEventListener('change', () => { if (pickCustom(cf.value, ct.value)) renderSetup(); }));
-    const bind = (id, fn) => { const i = $('#' + id, host); if (i) i.addEventListener('input', () => { const v = parseFloat(i.value); if (!isNaN(v) && v >= 0) fn(v); }); };
+    const bind = (id, fn) => { const i = $('#' + id, host); if (!i) return; checkSane(id, parseFloat(i.value)); i.addEventListener('input', () => { const v = parseFloat(i.value); checkSane(id, v); if (!isNaN(v) && v > 0) fn(v); }); };
     bind('car-kmpl', v => { S.vehicles.car.kmpl = v; }); bind('car-price', v => { S.vehicles.car.price = v; });
     bind('bike-kmpl', v => { S.vehicles.bike.kmpl = v; }); bind('bike-price', v => { S.vehicles.bike.price = v; });
     bind('ev-eff', v => { S.ev.kmPerKwh = v; }); bind('ev-home', v => { S.ev.homeRate = v; }); bind('ev-public', v => { S.ev.publicRate = v; });
@@ -1488,7 +1503,8 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
     const chapter = (id, num, t, lede, body, nav) => chapters.push({ id, nav, html: `<section class="chapter" id="${id}"><div class="wrap"><div class="chapter-head reveal"><div class="chapter-num">${num}</div><h2 class="chapter-title">${t}</h2><p class="chapter-lede">${lede}</p></div><div class="chapter-body reveal">${body}</div></div></section>` });
 
     // 01 — cost
-    chapter('cost', 'One', 'What it cost', `<b>${money(r.fuelCost)}</b> on fuel — about ${money(r.fuelCost / Math.max(1, r.windowHours / 24))} a day, for ${n0(r.fuelLitres)} litres.`,
+    const assume = ['car', 'bike'].filter(m => r.byMode[m].km > 0).map(m => `${MODE_LABEL[m].toLowerCase()} at ${n1(S.vehicles[m].kmpl)} km per litre`).join(', ');
+    chapter('cost', 'One', 'What it cost', `<b>${money(r.fuelCost)}</b> on fuel, about ${money(r.fuelCost / Math.max(1, r.windowHours / 24))} a day, for ${n0(r.fuelLitres)} litres. Worked out with the ${assume}, and petrol at ${money(S.vehicles.car.price)} a litre. <a href="#" data-goto="car">Change these</a>`,
       `<div class="figure-pair">
         <div class="fig"><div class="fig-title">By vehicle</div><div class="lines">${fuelModes.map(m => `<div class="line"><span class="k">${MODE_LABEL[m]} · ${n0(r.byMode[m].km)} km · ${n0(r.byMode[m].litres)} l at ${n1(S.vehicles[m].kmpl)} km/l</span><span class="v num">${money(r.byMode[m].cost)}</span><span class="bar"><i style="width:${pct(r.byMode[m].cost, r.fuelCost)}%;background:${MODE_COLOR(m)}"></i></span></div>`).join('') || '<p class="muted">No car or motorbike journeys in this period.</p>'}</div></div>
         <div class="fig"><div class="fig-title">By month</div><div id="ch-month"></div></div>
@@ -1571,7 +1587,7 @@ details.more#more { margin-top: 56px; border-top: 1px solid var(--hair); padding
       <section class="r-hero"><div class="wrap">
         <div class="kicker reveal">${kicker}${st.sample ? ' · sample data' : ''}</div>
         <h1 class="display reveal">${title}</h1>
-        <p class="sub reveal">You covered ${n0(r.totalKm)} km${r.fuelCost ? `, spent ${money(r.fuelCost)} on fuel` : ''} and made ${plural(r.trips.length, 'trip')} out of town. Here’s the whole story.</p>
+        <p class="sub reveal">You covered ${n0(r.totalKm)} km${r.fuelCost ? `, spent ${money(r.fuelCost)} on fuel (car at ${n1(S.vehicles.car.kmpl)} km per litre, petrol ${money(S.vehicles.car.price)})` : ''} and made ${plural(r.trips.length, 'trip')} out of town. Here’s the whole story.</p>
         <div class="stats reveal">
           <div class="stat"><div class="v num">${n0(r.totalKm)}</div><div class="l">kilometres travelled</div></div>
           <div class="stat"><div class="v num">${money(r.fuelCost)}</div><div class="l">spent on fuel</div></div>

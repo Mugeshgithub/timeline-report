@@ -31,7 +31,7 @@
   const plural = (n, w, p) => `${n0(n)} ${n === 1 ? w : (p || w + 's')}`;
 
   // ---------- persistence
-  const storeKey = () => 'timeline-report:' + st.data.fingerprint;
+  const storeKey = () => 'timeline-report:v2:' + st.data.fingerprint;
   function save() {
     if (st.sample) return;
     try { localStorage.setItem(storeKey(), JSON.stringify({ S: st.S, edits: st.edits, stayNames: st.stayNames, stayIdx: st.stayIdx })); } catch (e) { /* storage full or blocked */ }
@@ -170,7 +170,12 @@
     return o;
   }
   const QA = (n, q, hint, body) => `<section class="qa"><h3 class="qa-q"><span class="qa-n">${n}</span>${q}</h3>${hint ? `<p class="qa-hint">${hint}</p>` : ''}${body}</section>`;
-  const numField = (id, label, val, unit) => `<div class="field"><label>${label}</label><div class="ctl"><input type="number" id="${id}" value="${val}" min="0" step="any"><span class="unit">${unit}</span></div></div>`;
+  const numField = (id, label, val, unit) => `<div class="field"><label>${label}<small class="warn" id="${id}-warn"></small></label><div class="ctl"><input type="number" id="${id}" value="${val}" min="0" step="any"><span class="unit">${unit}</span></div></div>`;
+  const SANE = { 'car-kmpl': [5, 35, 'Most cars do 8–30 km on a litre. Is this the motorbike’s figure?'], 'bike-kmpl': [15, 120, 'Most motorbikes do 25–90 km on a litre.'] };
+  function checkSane(id, v) {
+    const w = $('#' + id + '-warn'), r = SANE[id]; if (!w || !r) return;
+    w.textContent = v < r[0] || v > r[1] ? r[2] : '';
+  }
   const CHECK_MODES = ['bike', 'bus', 'train', 'cycle'];
   const MODE_PLAIN = { bike: 'By motorbike', bus: 'By bus', train: 'By train', cycle: 'By bicycle' };
 
@@ -237,7 +242,7 @@
     };
     const cf = $('#c-from', host), ct = $('#c-to', host);
     if (cf) [cf, ct].forEach(i => i.addEventListener('change', () => { if (pickCustom(cf.value, ct.value)) renderSetup(); }));
-    const bind = (id, fn) => { const i = $('#' + id, host); if (i) i.addEventListener('input', () => { const v = parseFloat(i.value); if (!isNaN(v) && v >= 0) fn(v); }); };
+    const bind = (id, fn) => { const i = $('#' + id, host); if (!i) return; checkSane(id, parseFloat(i.value)); i.addEventListener('input', () => { const v = parseFloat(i.value); checkSane(id, v); if (!isNaN(v) && v > 0) fn(v); }); };
     bind('car-kmpl', v => { S.vehicles.car.kmpl = v; }); bind('car-price', v => { S.vehicles.car.price = v; });
     bind('bike-kmpl', v => { S.vehicles.bike.kmpl = v; }); bind('bike-price', v => { S.vehicles.bike.price = v; });
     bind('ev-eff', v => { S.ev.kmPerKwh = v; }); bind('ev-home', v => { S.ev.homeRate = v; }); bind('ev-public', v => { S.ev.publicRate = v; });
@@ -321,7 +326,8 @@
     const chapter = (id, num, t, lede, body, nav) => chapters.push({ id, nav, html: `<section class="chapter" id="${id}"><div class="wrap"><div class="chapter-head reveal"><div class="chapter-num">${num}</div><h2 class="chapter-title">${t}</h2><p class="chapter-lede">${lede}</p></div><div class="chapter-body reveal">${body}</div></div></section>` });
 
     // 01 — cost
-    chapter('cost', 'One', 'What it cost', `<b>${money(r.fuelCost)}</b> on fuel — about ${money(r.fuelCost / Math.max(1, r.windowHours / 24))} a day, for ${n0(r.fuelLitres)} litres.`,
+    const assume = ['car', 'bike'].filter(m => r.byMode[m].km > 0).map(m => `${MODE_LABEL[m].toLowerCase()} at ${n1(S.vehicles[m].kmpl)} km per litre`).join(', ');
+    chapter('cost', 'One', 'What it cost', `<b>${money(r.fuelCost)}</b> on fuel, about ${money(r.fuelCost / Math.max(1, r.windowHours / 24))} a day, for ${n0(r.fuelLitres)} litres. Worked out with the ${assume}, and petrol at ${money(S.vehicles.car.price)} a litre. <a href="#" data-goto="car">Change these</a>`,
       `<div class="figure-pair">
         <div class="fig"><div class="fig-title">By vehicle</div><div class="lines">${fuelModes.map(m => `<div class="line"><span class="k">${MODE_LABEL[m]} · ${n0(r.byMode[m].km)} km · ${n0(r.byMode[m].litres)} l at ${n1(S.vehicles[m].kmpl)} km/l</span><span class="v num">${money(r.byMode[m].cost)}</span><span class="bar"><i style="width:${pct(r.byMode[m].cost, r.fuelCost)}%;background:${MODE_COLOR(m)}"></i></span></div>`).join('') || '<p class="muted">No car or motorbike journeys in this period.</p>'}</div></div>
         <div class="fig"><div class="fig-title">By month</div><div id="ch-month"></div></div>
@@ -404,7 +410,7 @@
       <section class="r-hero"><div class="wrap">
         <div class="kicker reveal">${kicker}${st.sample ? ' · sample data' : ''}</div>
         <h1 class="display reveal">${title}</h1>
-        <p class="sub reveal">You covered ${n0(r.totalKm)} km${r.fuelCost ? `, spent ${money(r.fuelCost)} on fuel` : ''} and made ${plural(r.trips.length, 'trip')} out of town. Here’s the whole story.</p>
+        <p class="sub reveal">You covered ${n0(r.totalKm)} km${r.fuelCost ? `, spent ${money(r.fuelCost)} on fuel (car at ${n1(S.vehicles.car.kmpl)} km per litre, petrol ${money(S.vehicles.car.price)})` : ''} and made ${plural(r.trips.length, 'trip')} out of town. Here’s the whole story.</p>
         <div class="stats reveal">
           <div class="stat"><div class="v num">${n0(r.totalKm)}</div><div class="l">kilometres travelled</div></div>
           <div class="stat"><div class="v num">${money(r.fuelCost)}</div><div class="l">spent on fuel</div></div>

@@ -60,31 +60,39 @@
     return stays;
   };
 
-  // Best guess of home inside a stay.
+  // Best guess of home inside a stay: where you were at 3 am on the most nights
+  // (spots under 250 m apart count as one place, since Google often splits a home in two).
   TR.detectHome = function (data, stay) {
-    const centre = [stay.lat, stay.lng];
-    if (data.home && hav([data.home.lat, data.home.lng], centre) < 50) return { lat: data.home.lat, lng: data.home.lng };
-    const vs = topVisits(data).filter(v => v.start >= stay.start && v.end <= stay.end);
-    const byPlace = {};
-    vs.forEach(v => {
-      const p = byPlace[v.placeId] = byPlace[v.placeId] || { h: 0, night: 0, home: 0, lat: v.lat, lng: v.lng };
-      const h = (v.end - v.start) / H;
-      p.h += h;
-      if (/HOME/.test(v.semantic)) p.home += h;
-      const hr = localHour(v.start, v.offStart);
-      if (hr >= 20 || hr < 4) p.night += h;
-    });
-    const ps = Object.values(byPlace);
-    if (!ps.length) return { lat: stay.lat, lng: stay.lng };
-    const best = ps.reduce((a, b) => ((b.home * 3 + b.night * 2 + b.h) > (a.home * 3 + a.night * 2 + a.h) ? b : a));
-    return { lat: best.lat, lng: best.lng };
+    const vs = topVisits(data).filter(v => v.end > stay.start && v.start < stay.end);
+    if (!vs.length) return { lat: stay.lat, lng: stay.lng };
+    const groups = [];
+    const groupOf = v => {
+      let g = groups.find(g => hav([g.lat, g.lng], [v.lat, v.lng]) < 0.25);
+      if (!g) { g = { lat: v.lat, lng: v.lng, nights: 0, h: 0, best: 0 }; groups.push(g); }
+      return g;
+    };
+    vs.forEach(v => { const g = groupOf(v), h = (Math.min(v.end, stay.end) - Math.max(v.start, stay.start)) / H; g.h += h; });
+    for (let t = dayStart(dayKey(stay.start, stay.off), stay.off) + 3 * H; t < stay.end; t += DAY) {
+      const v = vs.find(v => v.start <= t && t < v.end);
+      if (v) groupOf(v).nights++;
+    }
+    // use the most visited exact spot inside the winning group as the home point
+    const win = groups.reduce((a, g) => (g.nights > a.nights || (g.nights === a.nights && g.h > a.h) ? g : a));
+    const spots = {};
+    vs.forEach(v => { if (hav([win.lat, win.lng], [v.lat, v.lng]) < 0.25) { const k = v.lat + ',' + v.lng; spots[k] = (spots[k] || 0) + (v.end - v.start); } });
+    const k = Object.keys(spots).reduce((a, b) => (spots[b] > spots[a] ? b : a));
+    const [lat, lng] = k.split(',').map(Number);
+    return { lat, lng };
   };
 
   // Default report window: first arrival home → last departure from home within the stay.
   TR.defaultWindow = function (data, stay, home) {
+    // Trim the airport run at each end: start at the first arrival home and stop at the last departure,
+    // but only when that is within a day and a half of the trip's ends (otherwise keep the whole trip).
     const vs = topVisits(data).filter(v => v.start >= stay.start && v.end <= stay.end && hav([v.lat, v.lng], [home.lat, home.lng]) < 0.25);
     if (!vs.length) return { start: stay.start, end: stay.end };
-    return { start: vs[0].start, end: vs.reduce((m, v) => Math.max(m, v.end), 0) };
+    const first = vs[0].start, last = vs.reduce((m, v) => Math.max(m, v.end), 0), slack = 36 * H;
+    return { start: first - stay.start < slack ? first : stay.start, end: stay.end - last < slack ? last : stay.end };
   };
 
   TR.defaultSettings = function () {
