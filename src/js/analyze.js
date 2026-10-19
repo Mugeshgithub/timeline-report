@@ -183,9 +183,11 @@
       const best = ts.filter(t => t.main).reduce((a, t) => (!a || (t.main.en - t.main.st) > (a.main.en - a.main.st) ? t : a), null) || ts[0];
       const key = best.main ? best.main.placeId : 'area' + best.i;
       const d = dh(best.anchor);
-      const auto = `${Math.round(d / 5) * 5} km ${compass(HOME, best.anchor)}`;
+      const region = TR.regionName ? TR.regionName(best.anchor[0], best.anchor[1]) : '';
+      const auto = region || `${Math.round(d / 5) * 5} km ${compass(HOME, best.anchor)}`;
+      const distLabel = `${Math.round(d / 5) * 5} km from home`;
       ts.forEach(t => { t.areaKey = key; });
-      return { key, name: (edits.areaNames && edits.areaNames[key]) || '', auto, anchor: best.anchor, trips: ts,
+      return { key, name: (edits.areaNames && edits.areaNames[key]) || '', auto, distLabel, anchor: best.anchor, trips: ts,
         km: ts.reduce((s, t) => s + t.totalKm, 0), cost: ts.reduce((s, t) => s + t.cost, 0),
         hours: ts.reduce((s, t) => s + (t.end - t.start) / H, 0) };
     }).sort((a, b) => b.trips.length - a.trips.length || b.km - a.km);
@@ -278,7 +280,8 @@
     // ---- places
     const P = {};
     visits.forEach(v => {
-      const r = P[v.placeId] = P[v.placeId] || { id: v.placeId, n: 0, h: 0, first: v.st, last: v.st, lat: v.p[0], lng: v.p[1], dh: v.dh, home: false, days: new Set() };
+      const key = v.home ? 'home' : v.placeId; // Google often splits home into several spots; show it once
+      const r = P[key] = P[key] || { id: key, n: 0, h: 0, first: v.st, last: v.st, lat: v.home ? HOME[0] : v.p[0], lng: v.home ? HOME[1] : v.p[1], dh: v.home ? 0 : v.dh, home: false, days: new Set() };
       r.n++; r.h += (v.en - v.st) / H; r.last = v.st; r.days.add(dayKey(v.st, off)); if (v.home) r.home = true;
     });
     const places = Object.values(P).map(r => Object.assign(r, { nDays: r.days.size, name: (edits.placeNames && edits.placeNames[r.id]) || '' }))

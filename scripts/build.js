@@ -16,7 +16,7 @@ const fonts = [
   font('InstrumentSans.woff2', 'Instrument Sans', 'normal', '400 700'),
 ].join('\n');
 const css = fs.readFileSync(src('styles.css'), 'utf8');
-const js = ['parse.js', 'analyze.js', 'sample.js', 'viz.js', 'app.js']
+const js = ['parse.js', 'analyze.js', 'gazetteer.js', 'geo.js', 'sample.js', 'viz.js', 'app.js']
   .map(f => `/* ${f} */\n` + fs.readFileSync(src('js/' + f), 'utf8')).join('\n');
 
 const html = fs.readFileSync(src('index.html'), 'utf8')

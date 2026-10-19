@@ -9,7 +9,7 @@ Google's own Timeline shows you dots on a map. Timeline Report asks three plain 
 - **What did it cost?** Fuel per vehicle, per month and per trip, plus what an electric car would have cost.
 - **Where did I go?** Every trip out of town, grouped by destination ("4 trips to Braga, 382 km").
 - **Where did the hours go?** Time at home, around town, away and on the road, week by week, plus when you usually left home and came back.
-- **Which places matter?** Your regular spots, which you can name yourself.
+- **Which places matter?** Your regular spots, labelled with the nearest town or neighbourhood ("Kurumbapet", "Alandur, Chennai") from a built-in offline list. Rename any of them, or open them in Google Maps to check.
 - **Day by day:** a calendar of your stay. Open any day to see it hour by hour and correct it.
 - **Where have I been?** Stays split by flights with calendar-day counts, useful as supporting evidence for residency or visa day counts.
 
@@ -86,6 +86,7 @@ src/index.html      page skeleton
 src/styles.css      all styles (light and dark)
 src/js/parse.js     reads Android / iPhone exports into one shape
 src/js/analyze.js   all the numbers: pure functions, no DOM
+src/js/geo.js       offline place names (nearest town) from src/js/gazetteer.js
 src/js/viz.js       hand-built SVG charts and the offline map
 src/js/app.js       setup questions, review, report, day drawer, CSV export
 src/js/sample.js    generator for the fake sample data
@@ -104,6 +105,6 @@ If you want a map-first viewer rather than a report, these are worth a look:
 
 ## Licence
 
-Code: [MIT](LICENSE). Fonts: [Instrument Serif](https://github.com/Instrument/instrument-serif) and [Instrument Sans](https://github.com/Instrument/instrument-sans), SIL Open Font License 1.1 (see [`src/fonts`](src/fonts)).
+Code: [MIT](LICENSE). Town and city names: [GeoNames](https://www.geonames.org) `cities15000`, CC BY 4.0, rebuilt with `node scripts/make-gazetteer.js cities15000.txt`. Fonts: [Instrument Serif](https://github.com/Instrument/instrument-serif) and [Instrument Sans](https://github.com/Instrument/instrument-sans), SIL Open Font License 1.1 (see [`src/fonts`](src/fonts)).
 
 Not affiliated with Google.

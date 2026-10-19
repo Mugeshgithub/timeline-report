@@ -186,7 +186,7 @@
     const trips = st.stays.map((s, i) => ({ s, i })).filter(x => x.s.days >= 2).reverse();
     const fmtD = (ms, off) => new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(ms + off * 60000));
     const tripRows = trips.map(({ s, i }) => `<div class="choice ${i === st.stayIdx && !S.custom ? 'on' : ''}" data-stay="${i}" role="button" tabindex="0"><span class="dot"></span>
-      <span><div class="t1">${fmtD(s.start, s.off)} – ${fmtD(s.end, s.off)}</div><div class="t2">${plural(s.days, 'day')}${st.stayNames[i] ? ' · ' + esc(st.stayNames[i]) : ''}</div></span><span class="aside"></span></div>`).join('');
+      <span><div class="t1">${fmtD(s.start, s.off)} – ${fmtD(s.end, s.off)}</div><div class="t2">${plural(s.days, 'day')}${stayName(i) ? ' · ' + esc(stayName(i)) : ''}</div></span><span class="aside"></span></div>`).join('');
     const custom = `<div class="choice ${S.custom ? 'on' : ''}" data-stay="custom" role="button" tabindex="0"><span class="dot"></span><span><div class="t1">Other dates</div><div class="t2">Choose any start and end date</div></span><span class="aside"></span></div>`;
     const customFields = S.custom ? `<div class="pair"><label>From <input type="date" id="c-from" min="${isoD(st.data.first, S.off)}" max="${isoD(st.data.last, S.off)}" value="${S.custom.from}"></label><label>To <input type="date" id="c-to" min="${isoD(st.data.first, S.off)}" max="${isoD(st.data.last, S.off)}" value="${S.custom.to}"></label></div>` : '';
     const q1 = QA(1, 'Which dates?', 'Each line is one trip in your file, split where you took a flight.', `<div class="choices">${tripRows}${custom}</div>${customFields}`);
@@ -211,7 +211,7 @@
     const homeRows = groups.slice(0, 5).map(g => {
       const on = U.hav([g.lat, g.lng], curH) < 0.25, nm = g.ids.map(id => st.edits.placeNames[id]).find(Boolean);
       const t = nm ? esc(nm) : g.nights ? `Slept here ${g.nights} of ${nights} nights` : `${n0(g.h)} hours here`;
-      return `<div class="choice ${on ? 'on' : ''}" data-home="${g.lat},${g.lng}" role="button" tabindex="0"><span class="dot"></span><span><div class="t1">${t}</div><div class="t2">${g.lat.toFixed(4)}, ${g.lng.toFixed(4)} · ${mapsLink(g.lat, g.lng)}</div></span><span class="aside"></span></div>`;
+      return `<div class="choice ${on ? 'on' : ''}" data-home="${g.lat},${g.lng}" role="button" tabindex="0"><span class="dot"></span><span><div class="t1">${t}</div><div class="t2">${esc(autoPlace(g.lat, g.lng))} · ${mapsLink(g.lat, g.lng)}</div></span><span class="aside"></span></div>`;
     }).join('');
     const more = `<details class="more" id="more"><summary>More options</summary>
       <div class="sub-q">Home</div><p class="qa-hint">We picked the place you slept most. Time at home and trips away are measured from here.</p><div class="choices">${homeRows}</div>
@@ -300,9 +300,11 @@
     const nm = placeName(v.placeId, v.home);
     if (nm) return esc(nm);
     const d = U.hav(v.p, st.r.HOME);
-    return `<span class="it">${d < 1 ? Math.round(d * 1000) + ' m' : n1(d) + ' km'} ${U.compass(st.r.HOME, v.p)}</span>`;
+    return `${esc(autoPlace(v.p[0], v.p[1]))} <span class="faint" style="font-family:var(--sans);font-size:13px">${d < 1 ? Math.round(d * 1000) + ' m' : n1(d) + ' km'} from home</span>`;
   }
   const areaTitle = a => esc(a.name || a.auto);
+  const stayName = i => st.stayNames[i] || (TR.regionName ? TR.regionName(st.stays[i].lat, st.stays[i].lng) : '');
+  const autoPlace = (lat, lng) => (TR.geoName ? TR.geoName(lat, lng).label : '') || 'Unnamed place';
 
   function buildReport() {
     st.r = TR.analyze(st.data, st.S, st.edits);
@@ -312,7 +314,7 @@
 
   function renderReport(keepScroll) {
     const y = window.scrollY, r = st.r, S = st.S;
-    const name = spansStays() ? '' : st.stayNames[st.stayIdx];
+    const name = spansStays() ? '' : stayName(st.stayIdx);
     const nDays = r.days.length;
     const homePct = pct(r.totals.home, r.windowHours);
     const kicker = `${dLong(r.A)} – ${dLong(r.B - 1)}`;
@@ -341,7 +343,7 @@
     // 02 — trips
     chapter('trips', 'Two', 'Where you went', r.trips.length ? `<b>${plural(r.trips.length, 'trip')}</b> beyond ${S.radiusKm} km from home, to ${plural(r.areas.length, 'destination')}. Name them — we only know the coordinates.` : `No trips beyond ${S.radiusKm} km from home in this period.`,
       r.areas.map(a => `<div class="area">
-        <div class="area-head"><div><input class="area-name" data-area="${esc(a.key)}" value="${esc(a.name)}" placeholder="${esc(a.auto)}" aria-label="Name this destination"><div class="area-meta">${a.name ? esc(a.auto) + ' · ' : ''}${n0(a.km)} km · ${money(a.cost)} · ${dur(a.hours)} away <span class="edit">· click the name to rename</span></div></div>
+        <div class="area-head"><div><input class="area-name" data-area="${esc(a.key)}" value="${esc(a.name)}" placeholder="${esc(a.auto)}" aria-label="Name this destination"><div class="area-meta">${a.distLabel || ''} · ${n0(a.km)} km driven · ${money(a.cost)} · ${dur(a.hours)} away <span class="edit">· click the name to change it</span></div></div>
         <div class="area-count num">${a.trips.length}<small>${a.trips.length === 1 ? 'trip' : 'trips'}</small></div></div>
         <table class="ledger"><thead><tr><th>When</th><th class="r">Away</th><th class="r">Stops</th><th class="r">Distance</th><th class="r">Fuel</th></tr></thead><tbody>
         ${a.trips.map(t => `<tr class="click" data-day="${U.dayKey(t.start, r.off)}"><td><span class="t-big">${dShort(t.start)}${U.dayKey(t.start, r.off) !== U.dayKey(t.end, r.off) ? ' – ' + dShort(t.end) : ''}</span> <span class="faint">${tHM(t.start)}</span></td><td class="r num">${dur((t.end - t.start) / H)}</td><td class="r num">${t.stops.length}</td><td class="r num">${n0(t.totalKm)} km</td><td class="r num">${money(t.cost)}</td></tr>`).join('')}
@@ -380,7 +382,7 @@
     const top = r.places.slice(0, 15);
     chapter('places', 'Five', 'Your places', `<b>${plural(r.places.length, 'place')}</b>, ${n0(r.oneOffs.length)} of them visited only once. Give the regulars a name — it stays on this device.`,
       `<table class="ledger"><thead><tr><th>Place</th><th class="r">Visits</th><th class="r">Days</th><th class="r">Hours</th><th class="r">From home</th></tr></thead><tbody>
-      ${top.map(p => `<tr><td><input class="place-name" data-place="${esc(p.id)}" value="${esc(placeName(p.id, p.home))}" placeholder="Name this place"><div class="coord">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</div></td><td class="r num">${p.n}</td><td class="r num">${p.nDays}</td><td class="r num">${n0(p.h)}</td><td class="r num">${p.home ? '—' : p.dh < 1 ? Math.round(p.dh * 1000) + ' m' : n1(p.dh) + ' km'}</td></tr>`).join('')}
+      ${top.map(p => `<tr><td><input class="place-name" data-place="${esc(p.id)}" value="${esc(placeName(p.id, p.home))}" placeholder="${esc(autoPlace(p.lat, p.lng))}"><div class="coord">${mapsLink(p.lat, p.lng)}</div></td><td class="r num">${p.n}</td><td class="r num">${p.nDays}</td><td class="r num">${n0(p.h)}</td><td class="r num">${p.home ? '—' : p.dh < 1 ? Math.round(p.dh * 1000) + ' m' : n1(p.dh) + ' km'}</td></tr>`).join('')}
       </tbody></table>`, 'Places');
 
     // 06 — map
@@ -399,7 +401,7 @@
     // 08 — stays
     chapter('stays', 'Eight', 'Where you’ve been', `Your whole file, ${dLongAny(st.data.first)} to ${dLongAny(st.data.last)}, split into stays by your flights.`,
       `<table class="ledger"><thead><tr><th>Stay</th><th>From</th><th>To</th><th class="r">Calendar days</th></tr></thead><tbody>
-      ${st.stays.map((s, i) => `<tr><td class="t-big">${st.stayNames[i] ? esc(st.stayNames[i]) : `<span class="it faint">Unnamed · ${offLabel(s.off)}</span>`}</td><td>${dAny(s.start, s.off)}</td><td>${dAny(s.end, s.off)}</td><td class="r num">${s.days}</td></tr>`).join('')}
+      ${st.stays.map((s, i) => `<tr><td class="t-big">${stayName(i) ? esc(stayName(i)) : `<span class="it faint">Unnamed · ${offLabel(s.off)}</span>`}</td><td>${dAny(s.start, s.off)}</td><td>${dAny(s.end, s.off)}</td><td class="r num">${s.days}</td></tr>`).join('')}
       </tbody></table>
       <p class="fig-note">Counts include the days you arrived and left. Google’s location is an estimate — useful as supporting evidence, but passports and tickets are what officially count.</p>`, 'Stays');
 
@@ -421,7 +423,7 @@
       <footer class="end"><div class="wrap">
         <p class="callout reveal">Made on this device. <em>Nothing left it.</em></p>
         <div class="pills no-print"><button class="pill" data-act="csv-days">Daily diary · CSV</button><button class="pill" data-act="csv-trips">Trips · CSV</button><button class="pill" data-act="csv-places">Places · CSV</button><button class="pill" data-act="print">Save as PDF</button><button class="pill" data-act="restart">Open another file</button></div>
-        <div class="colophon"><span class="lock">Runs offline. No uploads, no tracking, no AI.</span><span>Set in Instrument Serif &amp; Instrument Sans (SIL OFL)</span></div>
+        <div class="colophon"><span class="lock">Runs offline. No uploads, no tracking, no AI.</span><span>Town names from GeoNames (CC BY 4.0) · Set in Instrument Serif &amp; Sans (SIL OFL)</span></div>
       </div></footer>`;
 
     drawCharts();
@@ -501,7 +503,7 @@
     const r = st.r, cs = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     const colors = {}; ['car', 'bike', 'bus', 'train', 'cycle', 'walk', 'other', 'flight'].forEach(m => { colors[m] = cs('--mode-' + m); });
     const routes = r.moves.filter(m => !m.ignored && m.mode !== 'flight').map(m => ({ mode: m.mode, pts: routePts(m), tip: `<b>${MODE_LABEL[m.mode]} · ${n1(m.km)} km</b><br>${esc(dShort(m.st))}, ${tHM(m.st)}–${tHM(m.en)}` }));
-    const places = r.places.map(p => ({ lat: p.lat, lng: p.lng, h: p.h, home: p.home, tip: `<b>${esc(placeName(p.id, p.home) || 'Unnamed place')}</b><br>${plural(p.n, 'visit')} · ${n0(p.h)} hours<br>${esc(dShort(p.first))}${p.n > 1 ? ' – ' + esc(dShort(p.last)) : ''}` }));
+    const places = r.places.map(p => ({ lat: p.lat, lng: p.lng, h: p.h, home: p.home, tip: `<b>${esc(placeName(p.id, p.home) || autoPlace(p.lat, p.lng))}</b><br>${plural(p.n, 'visit')} · ${n0(p.h)} hours<br>${esc(dShort(p.first))}${p.n > 1 ? ' – ' + esc(dShort(p.last)) : ''}` }));
     mapCtl = TR.drawMap(host, { routes, places, home: r.HOME, homeRadiusKm: st.S.radiusKm, colors });
   }
 
