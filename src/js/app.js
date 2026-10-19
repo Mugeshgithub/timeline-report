@@ -34,7 +34,7 @@
   const storeKey = () => 'timeline-report:v2:' + st.data.fingerprint;
   function save() {
     if (st.sample) return;
-    try { localStorage.setItem(storeKey(), JSON.stringify({ S: st.S, edits: st.edits, stayNames: st.stayNames, stayIdx: st.stayIdx })); } catch (e) { /* storage full or blocked */ }
+    try { localStorage.setItem(storeKey(), JSON.stringify({ S: st.S, edits: st.edits, stayNames: st.stayNames, stayIdx: st.stayIdx, mapView: st.mapView })); } catch (e) { /* storage full or blocked */ }
   }
   function restore() {
     try { const v = JSON.parse(localStorage.getItem(storeKey()) || 'null'); return v && v.S ? v : null; } catch (e) { return null; }
@@ -79,7 +79,7 @@
     if (!st.stays.length) { fail('We couldn\'t find any visits in this file.'); return; }
     const saved = sample ? null : restore();
     if (saved) {
-      Object.assign(st, { S: saved.S, edits: saved.edits, stayNames: saved.stayNames || {}, stayIdx: Math.min(saved.stayIdx || 0, st.stays.length - 1) });
+      Object.assign(st, { S: saved.S, edits: saved.edits, stayNames: saved.stayNames || {}, stayIdx: Math.min(saved.stayIdx || 0, st.stays.length - 1), mapView: saved.mapView || null });
       buildReport();
       return;
     }
@@ -498,13 +498,17 @@
     pts.push(m.p2);
     return pts;
   }
+  let saveViewT;
   function drawTheMap() {
     const host = $('#mapbox'); if (!host) return;
     const r = st.r, cs = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     const colors = {}; ['car', 'bike', 'bus', 'train', 'cycle', 'walk', 'other', 'flight'].forEach(m => { colors[m] = cs('--mode-' + m); });
     const routes = r.moves.filter(m => !m.ignored && m.mode !== 'flight').map(m => ({ mode: m.mode, pts: routePts(m), tip: `<b>${MODE_LABEL[m.mode]} · ${n1(m.km)} km</b><br>${esc(dShort(m.st))}, ${tHM(m.st)}–${tHM(m.en)}` }));
     const places = r.places.map(p => ({ lat: p.lat, lng: p.lng, h: p.h, home: p.home, tip: `<b>${esc(placeName(p.id, p.home) || autoPlace(p.lat, p.lng))}</b><br>${plural(p.n, 'visit')} · ${n0(p.h)} hours<br>${esc(dShort(p.first))}${p.n > 1 ? ' – ' + esc(dShort(p.last)) : ''}` }));
-    mapCtl = TR.drawMap(host, { routes, places, home: r.HOME, homeRadiusKm: st.S.radiusKm, colors });
+    const viewKey = st.S.start + ':' + st.S.end; // a saved view belongs to one date range
+    mapCtl = TR.drawMap(host, { routes, places, home: r.HOME, homeRadiusKm: st.S.radiusKm, colors,
+      view: st.mapView && st.mapView.key === viewKey ? st.mapView : null,
+      onView: v => { st.mapView = Object.assign({ key: viewKey }, v); clearTimeout(saveViewT); saveViewT = setTimeout(save, 400); } });
   }
 
   // ---------- day drawer

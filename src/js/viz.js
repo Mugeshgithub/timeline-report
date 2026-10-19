@@ -157,8 +157,10 @@
     const all = model.places.map(p => [p.lat, p.lng]);
     model.routes.forEach(rt => rt.pts.forEach(p => all.push(p)));
     if (!all.length) return;
-    const xs = all.map(p => mx(p[1])), ys = all.map(p => my(p[0]));
-    const bx = [Math.min.apply(null, xs), Math.max.apply(null, xs)], by = [Math.min.apply(null, ys), Math.max.apply(null, ys)];
+    // fit to where you actually spent your time: ignore the outer 1% of points so one stray GPS fix doesn't zoom the map out
+    const xs = all.map(p => mx(p[1])).sort((a, b) => a - b), ys = all.map(p => my(p[0])).sort((a, b) => a - b);
+    const cut = all.length > 100 ? Math.floor(all.length * 0.01) : 0;
+    const bx = [xs[cut], xs[xs.length - 1 - cut]], by = [ys[cut], ys[ys.length - 1 - cut]];
     const F = Math.min((W - 80) / Math.max(1e-6, bx[1] - bx[0]), (Hh - 80) / Math.max(1e-6, by[1] - by[0]));
     const ox = (W - (bx[1] - bx[0]) * F) / 2 - bx[0] * F, oy = (Hh - (by[1] - by[0]) * F) / 2 - by[0] * F;
     const P = (lat, lng) => [mx(lng) * F + ox, my(lat) * F + oy];
@@ -240,7 +242,7 @@
     // view state
     let k = 1, tx = 0, ty = 0, raf = 0;
     const scaleEl = host.querySelector('.scalebar');
-    function apply() {
+    let apply = function () {
       g.setAttribute('transform', `translate(${tx},${ty}) scale(${k})`);
       const sz = Math.min(1.6, Math.pow(k, 0.15)) / k; // dots stay roughly the same size on screen, growing slightly as you zoom in
       dots.forEach(([c, b0, ring]) => { c.setAttribute('r', b0 * 0.75 * sz); if (ring) ring.setAttribute('r', (b0 * 0.75 + 4) * sz); });
@@ -261,7 +263,25 @@
     svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
     svg.addEventListener('dblclick', e => { const b = svg.getBoundingClientRect(); zoomAt(2, e.clientX - b.left, e.clientY - b.top); });
     function fitTo(cx, cy, halfW) { k = Math.max(0.5, Math.min(4000, Math.min(W, Hh) / 2 / halfW)); tx = W / 2 - cx * k; ty = Hh / 2 - cy * k; apply(); }
-    apply();
+    // remember the view (centre + scale) so it survives edits, resizes and reloads
+    const R0 = 6371000 * Math.cos(model.home[0] * r);
+    let viewT;
+    function reportView() {
+      if (!model.onView) return;
+      clearTimeout(viewT);
+      viewT = setTimeout(() => {
+        const px = (W / 2 - tx) / k, py = (Hh / 2 - ty) / k;
+        const lng = (px - ox) / F / r, lat = (2 * Math.atan(Math.exp(-(py - oy) / F)) - Math.PI / 2) / r;
+        model.onView({ lat, lng, mPerPx: R0 / (F * k) });
+      }, 250);
+    }
+    const applyBase = apply;
+    apply = function () { applyBase(); reportView(); };
+    if (model.view && model.view.mPerPx > 0) {
+      k = Math.max(0.5, Math.min(4000, R0 / (F * model.view.mPerPx)));
+      const c = P(model.view.lat, model.view.lng); tx = W / 2 - c[0] * k; ty = Hh / 2 - c[1] * k;
+      applyBase();
+    } else applyBase();
     return {
       fitAll() { k = 1; tx = 0; ty = 0; apply(); },
       fitHome() { fitTo(hp[0], hp[1], ringR * 1.15); },
