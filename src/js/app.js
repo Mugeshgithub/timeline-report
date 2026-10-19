@@ -17,6 +17,7 @@
   const n0 = v => nf0.format(Math.round(v || 0));
   const n1 = v => nf1.format(v || 0);
   const money = v => esc(st.S.currency) + n0(v);
+  const price = v => esc(st.S.currency) + (v < 20 ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) : n0(v)); // per-litre / per-unit prices keep their decimals
   const loc = ms => new Date(ms + st.S.off * 60000);
   const fmt = (ms, o) => new Intl.DateTimeFormat(undefined, Object.assign({ timeZone: 'UTC' }, o)).format(loc(ms));
   const dShort = ms => fmt(ms, { day: 'numeric', month: 'short' });
@@ -329,7 +330,7 @@
 
     // 01 — cost
     const assume = ['car', 'bike'].filter(m => r.byMode[m].km > 0).map(m => `${MODE_LABEL[m].toLowerCase()} at ${n1(S.vehicles[m].kmpl)} km per litre`).join(', ');
-    chapter('cost', 'One', 'What it cost', `<b>${money(r.fuelCost)}</b> on fuel, about ${money(r.fuelCost / Math.max(1, r.windowHours / 24))} a day, for ${n0(r.fuelLitres)} litres. Worked out with the ${assume}, and petrol at ${money(S.vehicles.car.price)} a litre. <a href="#" data-goto="car">Change these</a>`,
+    chapter('cost', 'One', 'What it cost', `<b>${money(r.fuelCost)}</b> on fuel, about ${money(r.fuelCost / Math.max(1, r.windowHours / 24))} a day, for ${n0(r.fuelLitres)} litres. Worked out with the ${assume}, and petrol at ${price(S.vehicles.car.price)} a litre. <a href="#" data-goto="car">Change these</a>`,
       `<div class="figure-pair">
         <div class="fig"><div class="fig-title">By vehicle</div><div class="lines">${fuelModes.map(m => `<div class="line"><span class="k">${MODE_LABEL[m]} · ${n0(r.byMode[m].km)} km · ${n0(r.byMode[m].litres)} l at ${n1(S.vehicles[m].kmpl)} km/l</span><span class="v num">${money(r.byMode[m].cost)}</span><span class="bar"><i style="width:${pct(r.byMode[m].cost, r.fuelCost)}%;background:${MODE_COLOR(m)}"></i></span></div>`).join('') || '<p class="muted">No car or motorbike journeys in this period.</p>'}</div></div>
         <div class="fig"><div class="fig-title">By month</div><div id="ch-month"></div></div>
@@ -337,7 +338,7 @@
       ${r.trips.length ? `<p class="callout">Trips out of town took <span class="hl">${money(r.outCost)}</span> <span class="dim">— ${outShare}% of the total — while everyday running around came to ${money(r.fuelCost - r.outCost)}.</span></p>` : ''}
       <div class="figure-pair">
         ${r.shortCar.n && S.modesUsed.bike !== false ? `<div class="fig"><div class="fig-title">Short hops</div><p style="font-size:17px;margin:0">${plural(r.shortCar.n, 'car journey')} around town were under 5 km (${n0(r.shortCar.km)} km in all). On the motorbike they’d have cost <b>${money(r.shortCar.saving)}</b> less.</p></div>` : ''}
-        ${r.byMode.car.km > 0 ? `<div class="fig"><div class="fig-title">If the car were electric</div><p style="font-size:17px;margin:0">The same ${n0(r.byMode.car.km)} km would have cost about <b>${money(r.ev.cost)}</b> instead of ${money(r.byMode.car.cost)}.</p><p class="fig-note">${n1(S.ev.kmPerKwh)} km per unit, ${Math.round(S.ev.homeShare * 100)}% charged at home at ${money(S.ev.homeRate)} and the rest at ${money(S.ev.publicRate)}, plus 10% charging losses. <a href="#" data-goto="more">Change</a></p></div>` : ''}
+        ${r.byMode.car.km > 0 ? `<div class="fig"><div class="fig-title">If the car were electric</div><p style="font-size:17px;margin:0">The same ${n0(r.byMode.car.km)} km would have cost about <b>${money(r.ev.cost)}</b> instead of ${money(r.byMode.car.cost)}.</p><p class="fig-note">${n1(S.ev.kmPerKwh)} km per unit, ${Math.round(S.ev.homeShare * 100)}% charged at home at ${price(S.ev.homeRate)} and the rest at ${price(S.ev.publicRate)}, plus 10% charging losses. <a href="#" data-goto="more">Change</a></p></div>` : ''}
       </div>`, 'Cost');
 
     // 02 — trips
@@ -412,7 +413,7 @@
       <section class="r-hero"><div class="wrap">
         <div class="kicker reveal">${kicker}${st.sample ? ' · sample data' : ''}</div>
         <h1 class="display reveal">${title}</h1>
-        <p class="sub reveal">You covered ${n0(r.totalKm)} km${r.fuelCost ? `, spent ${money(r.fuelCost)} on fuel (car at ${n1(S.vehicles.car.kmpl)} km per litre, petrol ${money(S.vehicles.car.price)})` : ''} and made ${plural(r.trips.length, 'trip')} out of town. Here’s the whole story.</p>
+        <p class="sub reveal">You covered ${n0(r.totalKm)} km${r.fuelCost ? `, spent ${money(r.fuelCost)} on fuel (car at ${n1(S.vehicles.car.kmpl)} km per litre, petrol ${price(S.vehicles.car.price)})` : ''} and made ${plural(r.trips.length, 'trip')} out of town. Here’s the whole story.</p>
         <div class="stats reveal">
           <div class="stat"><div class="v num">${n0(r.totalKm)}</div><div class="l">kilometres travelled</div></div>
           <div class="stat"><div class="v num">${money(r.fuelCost)}</div><div class="l">spent on fuel</div></div>
