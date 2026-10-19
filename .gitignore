@@ -5,3 +5,5 @@ Timeline*.json
 timeline*.json
 Records.json
 *.local.*
+.vercel
+.env*.local

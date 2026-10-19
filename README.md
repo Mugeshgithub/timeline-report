@@ -14,7 +14,7 @@ Google's own Timeline shows you dots on a map. Timeline Report asks three plain 
 - **Day by day:** a calendar of your stay. Open any day to see it hour by hour and correct it.
 - **Where have I been?** Stays split by flights with calendar-day counts, useful as supporting evidence for residency or visa day counts.
 
-**Try it:** [open Timeline Report](https://mugeshgithub.github.io/timeline-report/) and click *Explore with sample data*. You can also download [`docs/index.html`](docs/index.html) and open the file directly; it works with no internet connection.
+**Try it:** [open Timeline Report](https://timeline-report.vercel.app) and click *Explore with sample data*. You can also download [`docs/index.html`](docs/index.html) and open the file directly; it works with no internet connection.
 
 ## Private by design
 
