@@ -647,7 +647,7 @@ footer.end .colophon { margin-top: 60px; }
     edits = edits || { modes: {}, placeNames: {}, areaNames: {} };
     const off = S.off, A = S.start, B = S.end, HOME = [S.home.lat, S.home.lng], R = S.radiusKm;
     const dh = p => hav(p, HOME);
-    const isHome = p => dh(p) < 0.15;
+    const isHome = p => dh(p) < 0.25;
 
     // ---- events in window
     const visits = [], moves = [];
@@ -1287,15 +1287,31 @@ footer.end .colophon { margin-top: 60px; }
   }
   const qhead = (n, q, hint) => `<div class="q-num">Question ${n} of ${STEPS.length - 1}</div><h2 class="question">${q}</h2>${hint ? `<p class="hint">${hint}</p>` : ''}`;
 
-  function stayPlaces(stay) {
-    const P = {};
-    st.data.segs.forEach(s => {
-      if (s.kind !== 'visit' || s.level !== 0 || s.start < stay.start || s.end > stay.end) return;
+  // Candidate homes: places in range, with spots under 250 m apart merged (Google often splits one home in two),
+  // and a count of the nights you were there at 3 am.
+  function homeCandidates(range) {
+    const P = {}, vs = st.data.segs.filter(s => s.kind === 'visit' && s.level === 0 && s.end > range.start && s.start < range.end);
+    vs.forEach(s => {
       const p = P[s.placeId] = P[s.placeId] || { id: s.placeId, lat: s.lat, lng: s.lng, h: 0, n: 0 };
-      p.h += (s.end - s.start) / H; p.n++;
+      p.h += (Math.min(s.end, range.end) - Math.max(s.start, range.start)) / H; p.n++;
     });
-    return Object.values(P).sort((a, b) => b.h - a.h);
+    const groups = [], of = {};
+    Object.values(P).sort((a, b) => b.h - a.h).forEach(p => {
+      const g = groups.find(g => U.hav([g.lat, g.lng], [p.lat, p.lng]) < 0.25);
+      if (g) { g.h += p.h; g.n += p.n; g.ids.push(p.id); of[p.id] = g; }
+      else { const ng = { lat: p.lat, lng: p.lng, h: p.h, n: p.n, ids: [p.id], nights: 0 }; groups.push(ng); of[p.id] = ng; }
+    });
+    let nights = 0;
+    for (let t = U.dayStart(U.dayKey(range.start, st.S.off), st.S.off) + 3 * H; t < range.end; t += DAY) {
+      if (t < range.start) continue;
+      nights++;
+      const v = vs.find(s => s.start <= t && t < s.end);
+      if (v && of[v.placeId]) of[v.placeId].nights++;
+    }
+    groups.sort((a, b) => b.nights - a.nights || b.h - a.h);
+    return { groups, nights };
   }
+  const mapsLink = (lat, lng) => `<a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener noreferrer">See on Google Maps ↗</a>`;
   function rawModeKm() {
     const km = {};
     st.data.segs.forEach(s => { if (s.kind === 'move' && s.start >= st.S.start && s.start < st.S.end) km[s.mode] = (km[s.mode] || 0) + s.km; });
@@ -1321,16 +1337,23 @@ footer.end .colophon { margin-top: 60px; }
         <div class="field"><label>To<small>Last day to include${spansStays() ? ' · this range covers more than one trip, so distances are measured from one home' : ''}</small></label><div class="ctl"><input type="date" id="c-to" min="${isoDay(st.data.first)}" max="${isoDay(st.data.last)}" value="${st.S.custom.to}"></div></div>` : ''}`;
     },
     home() {
-      const stay = st.stays[st.stayIdx], places = stayPlaces(st.S.custom ? { start: st.S.start, end: st.S.end } : stay).slice(0, 6);
-      const curHome = [st.S.home.lat, st.S.home.lng];
-      const rows = places.map(p => {
-        const on = U.hav([p.lat, p.lng], curHome) < 0.15;
-        const nm = st.edits.placeNames[p.id];
-        return `<div class="choice ${on ? 'on' : ''}" data-home="${p.lat},${p.lng}" role="button" tabindex="0"><span class="dot"></span>
-          <span><div class="t1">${nm ? esc(nm) : `${n0(p.h)} hours here`}</div><div class="t2">${plural(p.n, 'visit')}${nm ? ` · ${n0(p.h)} hours` : ''} · ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</div></span><span class="aside">${on ? 'Home' : ''}</span></div>`;
-      }).join('');
+      const range = st.S.custom ? { start: st.S.start, end: st.S.end } : st.stays[st.stayIdx];
+      const { groups, nights } = homeCandidates(range), cur = [st.S.home.lat, st.S.home.lng];
+      const isCur = g => U.hav([g.lat, g.lng], cur) < 0.25;
+      const chosen = groups.find(isCur) || { lat: cur[0], lng: cur[1], h: 0, n: 0, ids: [], nights: 0 };
+      const others = groups.filter(g => g !== chosen).slice(0, 6);
+      const nameOf = g => g.ids.map(id => st.edits.placeNames[id]).find(Boolean);
+      const row = (g, on) => {
+        const nm = nameOf(g), d = U.hav(cur, [g.lat, g.lng]);
+        const title = nm ? esc(nm) : g.nights ? (on ? `Where you slept ${n0(g.nights)} of ${nights} nights` : `Where you slept ${plural(g.nights, 'night')}`) : `${n0(g.h)} hours over ${plural(g.n, 'visit')}`;
+        const where = on ? '' : `${d < 1 ? Math.round(d * 1000) + ' m' : n1(d) + ' km'} ${U.compass(cur, [g.lat, g.lng])} of the home above · `;
+        return `<div class="choice ${on ? 'on' : ''}" data-home="${g.lat},${g.lng}" role="button" tabindex="0"><span class="dot"></span>
+          <span><div class="t1">${title}</div><div class="t2">${where}${n0(g.h)} hours · ${plural(g.n, 'visit')} · ${g.lat.toFixed(4)}, ${g.lng.toFixed(4)} · ${mapsLink(g.lat, g.lng)}</div></span><span class="aside">${on ? 'Home' : ''}</span></div>`;
+      };
       const toDate = ms => loc(ms).toISOString().slice(0, 10);
-      return qhead(2, 'Where’s home?', 'Picked from where you slept most. Choose another if we got it wrong.') + `<div class="choices">${rows}</div>
+      return qhead(2, 'Is this your home?', `This is where you were at 3 am on most nights. Everything in the report is measured from here: time at home, what counts as out of town, and when you left and came back. If it’s right, just continue.`) +
+        `<div class="choices">${row(chosen, true)}</div>
+        ${others.length ? `<details class="more" ${groups.indexOf(chosen) > 0 ? 'open' : ''}><summary>Not right? Pick another place you spent time at</summary><div class="choices" style="margin-top:14px">${others.map(g => row(g, false)).join('')}</div></details>` : ''}
         <div class="group-title">Dates</div>
         <div class="field"><label>From<small>${st.S.custom ? 'Your custom range' : `We begin when you first got home: ${dShort(st.S.start)}, ${tHM(st.S.start)}`}</small></label><div class="ctl"><input type="date" id="d-from" value="${toDate(st.S.start)}"></div></div>
         <div class="field"><label>To<small>${st.S.custom ? 'Change it here or on the first question' : `…and stop when you last left: ${dShort(st.S.end)}, ${tHM(st.S.end)}`}</small></label><div class="ctl"><input type="date" id="d-to" value="${toDate(st.S.end - 1)}"></div></div>`;
@@ -1422,6 +1445,7 @@ footer.end .colophon { margin-top: 60px; }
     },
     home(host) {
       host.addEventListener('click', e => {
+        if (e.target.closest('a, summary')) return;
         const c = e.target.closest('[data-home]'); if (!c) return;
         const [lat, lng] = c.dataset.home.split(',').map(Number);
         st.S.home = { lat, lng };

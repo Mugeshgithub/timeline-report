@@ -110,7 +110,7 @@
     edits = edits || { modes: {}, placeNames: {}, areaNames: {} };
     const off = S.off, A = S.start, B = S.end, HOME = [S.home.lat, S.home.lng], R = S.radiusKm;
     const dh = p => hav(p, HOME);
-    const isHome = p => dh(p) < 0.15;
+    const isHome = p => dh(p) < 0.25;
 
     // ---- events in window
     const visits = [], moves = [];
